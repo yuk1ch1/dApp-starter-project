@@ -12,11 +12,90 @@ const App = () => {
   const [currentAccount, setCurrentAccount] = useState("");
   console.log("currentAccount: ", currentAccount);
 
+  // ユーザーのメッセージを保存するために使用する状態変数を定義
+  const [messageValue, setMessageValue] = useState("");
+
+  // 全てのwavesを保存する状態変数を定義
+  const [allWaves, setAllWaves] = useState([]);
+
   // デプロイされたコントラクトのデプロイ先アドレス
-  const contractAddress = "0x4C18bD8949FD3E18c2C2E80F321Fc9713dE45B6c";
+  const contractAddress = "0xF0cb7445761754C2A1ede1dDAB39f0Cf503c0812";
 
   // ABIの要素を参照する変数
   const contractABI = abi.abi;
+
+  const getAllWaves = async () => {
+    const { ethereum } = window;
+
+    try {
+      if (ethereum) {
+        const provider = new ethers.providers.Web3Provider(ethereum);
+        const signer = provider.getSigner();
+        const wavePortalContract = new ethers.Contract(
+          contractAddress,
+          contractABI,
+          signer
+        );
+        // コントラクトからgetAllWavesメソッドを呼び出す
+        const waves = await wavePortalContract.getAllWaves();
+        // UIに必要なのは、アドレス、タイムスタンプ、メッセージだけなのでそれらを抽出
+        const wavesCleaned = waves.map((wave) => {
+          return {
+            address: wave.waver,
+            timestamp: new Date(wave.timestamp * 1000),
+            message: wave.message,
+          }
+        });
+        // React Stateにデータを格納する
+        setAllWaves(wavesCleaned);
+      } else {
+        console.log("Ethereum object doesn't exist!")
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  // useEffectは複数持たせることができるっぽい
+  // こっちのuseEffectはemitされたイベントに反応する物だから責務を分けてるのかもしれない
+  useEffect(() => {
+    let wavePortalContract;
+
+    const onNewWave = (from, timestamp, message) => {
+      console.log("NewWave", from, timestamp, message);
+      setAllWaves((prevState) => [
+        ...prevState,
+        {
+          address: from,
+          timestamp: new Date(timestamp * 1000),
+          message: message,
+        },
+      ]);
+    };
+
+    // NewWaveイベントがコントラクトから発信された時に情報を受け取る
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+
+      // コントラクトのインスタンスを生成し、コントラクへの接続をしている
+      wavePortalContract = new ethers.Contract(
+        contractAddress,
+        contractABI,
+        signer
+      );
+
+      // ここで多分イベントリスナーが設定されているから、NewWaveのイベントがコントラクトから送られてきた時にonNewWaveが実行されるっぽい
+      wavePortalContract.on("NewWave", onNewWave);
+    }
+
+    // メモリリークを防ぐために、NewWaveのイベントを解除する
+    return () => {
+      if (wavePortalContract) {
+        wavePortalContract.off("NewWave", onNewWave);
+      }
+    };
+  }, []);
 
   /*window.ethereumにアクセスできることを確認*/
   const checkIfWalletIsConnected = async () => {
@@ -39,6 +118,7 @@ const App = () => {
         const account = accounts[0];
         console.log("Found on authorized account; ", account);
         setCurrentAccount(account);
+        getAllWaves();
       } else {
         console.log("No authorized account found");
       }
@@ -88,7 +168,9 @@ const App = () => {
         /*
         コントラクトに👋（wave）を書き込む
         */
-        const waveTxn = await wavePortalContract.wave();
+        const waveTxn = await wavePortalContract.wave(messageValue, {
+          gasLimit: 300000, // ガス量がガスリミットで設定した値以上になった場合に処理が強制的に中断される。
+        });
         console.log("Mining...", waveTxn.hash);
         await waveTxn.wait();
         console.log("Mined--", waveTxn.hash);
@@ -103,14 +185,15 @@ const App = () => {
   };
 
   /*
-  WEBページがロードされた時に下記の変数を実行
+  Reactのものらしい
+  useEffectに渡された関数はレンダリングの結果が画面に反映された後に動作する。
+  つまりuseEffectに書かれた処理はWEBページがロードされて、Reactのレンダリングが終わった後に実行される
   */
-  // Reactのものらしい。useEffectを使うと、useEffectいーしーとんに渡された関数はレンダリングの結果が画面に反映された後に動作する。
-  // つまりuseEffectに書かれた処理はReactのレンダリング後に実行される
   useEffect(() => {
     // 第1引数には実行させたい副作用関数を記述
     checkIfWalletIsConnected();
   }, []); // 第2引数には副作用関数の実行タイミングを制御する依存データを記述
+
   return (
     <div className="mainContainer">
       <div className="dataContainer">
@@ -121,34 +204,65 @@ const App = () => {
           WELCOME!
         </div>
         <div className="bio">
-          イーサリアムウォレットを接続して、「
+          イーサリアムウォレットを接続して、メッセージを作成したら
           <span role="img" aria-label="hand-wave">
             👋
           </span>
-          (wave)」を送ってください
+          を送ってください
           <span role="img" aria-label="shine">
             ✨
           </span>
         </div>
-        {/*
-         * waveボタンにwave関数を連動させる。
-         */}
-        <button className="waveButton" onClick={wave}>
-          Wave at Me
-        </button>
-        {/*
-         * ウォレットコネクトのボタンを実装
-         */}
+        <br />
+        {/* ウォレットコネクトボタンを実装 */}
         {!currentAccount && (
           <button className="waveButton" onClick={connectWallet}>
             Connect Wallet
           </button>
         )}
         {currentAccount && (
-          <button className="waveButton" onClick={connectWallet}>
-            Wallet Connected
+          <button className="waveButton">Wallet Connected</button>
+        )}
+        {/* waveボタンにwave関数を連動 */}
+        {currentAccount && (
+          <button className="waveButton" onClick={wave}>
+            Wave at Me
           </button>
         )}
+        {/*
+         メッセージボックスを実装
+         * 認証済みアドレスであるcurrentAccountが存在する場合に、テキストボックスをUIに表示する仕様
+        */}
+        {currentAccount && (
+          <textarea
+            name="messageArea"
+            placeholder="メッセージはこちら"
+            type="text"
+            id="message"
+            value={messageValue}
+            onChange={(e) => setMessageValue(e.target.value)}
+          />
+        )}
+        {/* 履歴を表示する */}
+        {currentAccount &&
+          allWaves
+            .slice(0)
+            .reverse()
+            .map((wave, index) => {
+              return (
+                <div
+                  key={index}
+                  style={{
+                    backgroundColor: "#F8F8FF",
+                    marginTop: "16px",
+                    padding: "8px",
+                  }}>
+                  <div>Address: {wave.address}</div>
+                  <div>Time: {wave.timestamp.toString()}</div>
+                  <div>Message: {wave.message}</div>
+                </div>
+              );
+            })}
       </div>
     </div>
   );
