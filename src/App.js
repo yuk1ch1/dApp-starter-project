@@ -1,6 +1,7 @@
 // App.js
 import React, { useEffect, useState } from "react";
-import "./App.css";
+import './App.css';
+
 // ethers変数を使えるようにする
 import { ethers } from "ethers";
 // ABIファイルを含むWavePortal.jsonファイルをインポートする
@@ -14,7 +15,7 @@ const App = () => {
   // デプロイされたコントラクトのデプロイ先アドレス
   const contractAddress = "0x4C18bD8949FD3E18c2C2E80F321Fc9713dE45B6c";
 
-  // ABIのニア用を参照する変数
+  // ABIの要素を参照する変数
   const contractABI = abi.abi;
 
   /*window.ethereumにアクセスできることを確認*/
@@ -129,9 +130,15 @@ const App = () => {
             ✨
           </span>
         </div>
+        {/*
+         * waveボタンにwave関数を連動させる。
+         */}
         <button className="waveButton" onClick={wave}>
           Wave at Me
         </button>
+        {/*
+         * ウォレットコネクトのボタンを実装
+         */}
         {!currentAccount && (
           <button className="waveButton" onClick={connectWallet}>
             Connect Wallet
