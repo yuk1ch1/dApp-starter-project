@@ -19,7 +19,7 @@ const App = () => {
   const [allWaves, setAllWaves] = useState([]);
 
   // デプロイされたコントラクトのデプロイ先アドレス
-  const contractAddress = "0x3167E6f7b7250836E6aF095a5118b0b9b2D20Fed";
+  const contractAddress = "0x637BEE92009B691772a71afD124B3cA7b9217334";
 
   // ABIの要素を参照する変数
   const contractABI = abi.abi;
